@@ -1,6 +1,5 @@
 # ConvoCraft - AI English Tutor (ASP.NET Core MVC)
 
-![License: 0BSD](https://img.shields.io/badge/License-0BSD-blue.svg)
 
 ConvoCraft is a web application that acts as your personal AI English Tutor. It provides a simple and engaging chat interface where users can practice their English conversation skills with a helpful AI. The AI is designed to be a friendly and encouraging partner, offering polite corrections and keeping the conversation flowing.
 
