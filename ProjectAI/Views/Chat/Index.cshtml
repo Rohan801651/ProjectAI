@@ -1,0 +1,269 @@
+﻿@model ProjectAI.Models.InitialChatViewModel
+
+@{
+    ViewData["Title"] = "English Tutor Chat";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .message-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+
+        .message.user {
+            background-color: #007bff;
+            color: white;
+            margin-left: auto;
+        }
+
+        .message.assistant {
+            background-color: #e9ecef;
+            color: black;
+            margin-right: auto;
+        }
+
+        .input-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #voiceButton.listening {
+            background-color: #dc3545;
+        }
+
+        .loading {
+            font-style: italic;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="message-list" id="messageList">
+            <!-- Initial assistant message -->
+            <div class="message assistant" data-id="@Model.InitialAssistantMessage.Id">
+                @Model.InitialAssistantMessage.Content
+            </div>
+        </div>
+        <div class="input-container">
+            <input type="text" id="messageInput" placeholder="Type your message..." />
+            <button id="sendButton">Send</button>
+            <button id="voiceButton">🎤 Voice</button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize message history with the initial assistant message
+        let messages = [
+            {
+                id: '@Model.InitialAssistantMessage.Id',
+                role: '@Model.InitialAssistantMessage.Role',
+                content: '@Model.InitialAssistantMessage.Content'
+            }
+        ];
+
+        const messageList = document.getElementById('messageList');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const voiceButton = document.getElementById('voiceButton');
+
+        // Initialize Web Speech API for voice input
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let isListening = false;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                messageInput.value = transcript;
+                sendMessage(); // Automatically send the transcribed message
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                voiceButton.classList.remove('listening');
+                voiceButton.textContent = '🎤 Voice';
+                isListening = false;
+                alert('Voice input error: ' + event.error);
+            };
+
+            recognition.onend = () => {
+                voiceButton.classList.remove('listening');
+                voiceButton.textContent = '🎤 Voice';
+                isListening = false;
+            };
+        }
+
+        // Toggle voice input
+        voiceButton.addEventListener('click', () => {
+            if (!recognition) {
+                alert('Speech recognition is not supported in this browser.');
+                return;
+            }
+
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+                voiceButton.classList.add('listening');
+                voiceButton.textContent = 'Stop';
+                isListening = true;
+            }
+        });
+
+        // Handle send button click or Enter key
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        async function sendMessage() {
+            const content = messageInput.value.trim();
+            if (!content) return;
+
+            // Add user message to UI and history
+            const userMessage = {
+                id: generateId(),
+                role: 'user',
+                content: content
+            };
+            messages.push(userMessage);
+            appendMessage(userMessage);
+            messageInput.value = '';
+
+            // Show loading indicator
+            const loadingMessage = document.createElement('div');
+            loadingMessage.className = 'message assistant loading';
+            loadingMessage.textContent = 'AI is thinking...';
+            messageList.appendChild(loadingMessage);
+            messageList.scrollTop = messageList.scrollHeight;
+
+            try {
+                // Send message to backend
+                const response = await fetch('/Chat/SendMessage', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        historyMessages: messages,
+                        newUserMessageContent: content
+                    })
+                });
+
+                loadingMessage.remove();
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Error communicating with AI service.');
+                }
+
+                const aiMessage = await response.json();
+                messages.push(aiMessage);
+                appendMessage(aiMessage);
+
+                // Text-to-speech for AI response
+                speakMessage(aiMessage.content);
+            } catch (error) {
+                console.error('Error:', error);
+                loadingMessage.remove();
+                const errorMessage = document.createElement('div');
+                errorMessage.className = 'message assistant';
+                errorMessage.textContent = 'Sorry, something went wrong. Please try again.';
+                messageList.appendChild(errorMessage);
+                messageList.scrollTop = messageList.scrollHeight;
+            }
+        }
+
+        function appendMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${message.role}`;
+            messageElement.dataset.id = message.id;
+            messageElement.textContent = message.content;
+            messageList.appendChild(messageElement);
+            messageList.scrollTop = messageList.scrollHeight;
+        }
+
+        function generateId() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function speakMessage(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US';
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+    </script>
+</body>
+</html>
