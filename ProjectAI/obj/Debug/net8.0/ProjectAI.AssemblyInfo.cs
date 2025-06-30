@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ProjectAI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2879e24c92a59e3b626ff57fd7d978bb049fc97f")]
 [assembly: System.Reflection.AssemblyProductAttribute("ProjectAI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ProjectAI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
